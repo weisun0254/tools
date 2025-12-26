@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的網頁目錄 (自動更新)</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f4f4f4; }
+        h1 { color: #333; border-bottom: 2px solid #0969da; padding-bottom: 10px; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        li:hover { transform: translateY(-3px); }
+        a { text-decoration: none; color: #333; font-size: 18px; padding: 15px; display: block; display: flex; align-items: center; }
+        .icon { margin-right: 10px; font-size: 20px; }
+        .loading { color: #666; font-style: italic; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>📂 我的雲端檔案庫</h1>
+    <p>以下列表由系統自動抓取，新增檔案後重新整理即可看到。</p>
+
+    <ul id="file-list">
+        <li class="loading">⏳ 正在讀取檔案列表...</li>
+    </ul>
+
+    <script>
+        // 設定您的帳號與專案名稱
+        const owner = 'weisun0254';
+        const repo = 'all';
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/`;
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                const listContainer = document.getElementById('file-list');
+                listContainer.innerHTML = ''; // 清空載入中訊息
+
+                // 過濾出 .html 檔案，並排除 index.html 自己
+                const htmlFiles = data.filter(file => 
+                    file.name.endsWith('.html') && file.name !== 'index.html'
+                );
+
+                if (htmlFiles.length === 0) {
+                    listContainer.innerHTML = '<li style="padding:15px">沒有找到其他 HTML 檔案</li>';
+                    return;
+                }
+
+                // 生成列表
+                htmlFiles.forEach(file => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <a href="${file.name}">
+                            <span class="icon">📄</span>
+                            <span>${file.name}</span>
+                        </a>
+                    `;
+                    listContainer.appendChild(li);
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('file-list').innerHTML = '<li style="color:red; padding:15px">⚠️ 讀取失敗，請稍後再試。</li>';
+            });
+    </script>
+
+</body>
+</html>
