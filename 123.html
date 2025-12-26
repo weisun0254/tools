@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>我的 Canvas 作品</title>
+    <style>
+        /* 這裡可以調整畫布在畫面上的位置 */
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            background-color: #f0f0f0; 
+        }
+        canvas { 
+            border: 2px solid #333; 
+            background-color: white; 
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="myCanvas" width="500" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 畫一個藍色矩形
+        ctx.fillStyle = '#007bff';
+        ctx.fillRect(50, 50, 150, 100);
+
+        // 寫一些文字
+        ctx.font = '30px Arial';
+        ctx.fillStyle = 'black';
+        ctx.fillText('Hello Canvas!', 250, 100);
+
+        // 畫一個紅色的圓形
+        ctx.beginPath();
+        ctx.arc(250, 250, 50, 0, Math.PI * 2);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+    </script>
+
+</body>
+</html>
