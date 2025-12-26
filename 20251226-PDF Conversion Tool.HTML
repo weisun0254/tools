@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智德_ PDF轉換工具_ V02</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#1e293b', 900: '#0f172a' }
+                    },
+                    fontFamily: {
+                        sans: ['"M PLUS Rounded 1c"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Libraries (使用更穩定的 CDN) -->
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- PptxGenJS -->
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Docx -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+    <!-- Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        // 設定 PDF Worker (關鍵步驟)
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+
+    <style>
+        /* UI 動畫與細節 */
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .option-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .option-card:hover { transform: translateX(5px); }
+        
+        /* 選中狀態 - 淺色 */
+        .light .option-card.selected { 
+            border-color: #4F46E5; 
+            background-color: #EEF2FF; 
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); 
+        }
+        /* 選中狀態 - 深色 */
+        .dark .option-card.selected { 
+            border-color: #818cf8; 
+            background-color: #312e81; 
+            box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.3); 
+        }
+        .option-card.selected .check-mark { display: block; }
+
+        .icon-bg { transition: transform 0.3s; }
+        .option-card:hover .icon-bg { transform: scale(1.1) rotate(5deg); }
+
+        .modal-enter { animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        /* 捲軸美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 min-h-screen flex flex-col transition-colors duration-300" onload="checkSystem()">
+
+    <!-- Header -->
+    <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm border-b border-slate-200 dark:border-slate-700 py-4 sticky top-0 z-40 transition-colors">
+        <div class="container mx-auto px-6 flex justify-between items-center max-w-6xl">
+            <h1 class="text-xl md:text-3xl font-extrabold flex items-center gap-3">
+                <span class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-lg">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </span>
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 dark:from-white dark:to-slate-300">
+                    智德_ PDF轉換工具_ V02
+                </span>
+            </h1>
+            
+            <button onclick="toggleTheme()" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-yellow-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center text-lg shadow-sm" title="切換深色模式">
+                <i class="fa-solid fa-sun dark:hidden"></i>
+                <i class="fa-solid fa-moon hidden dark:inline"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- System Check Alert (Default Hidden) -->
+    <div id="system-alert" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mx-6 mt-4 rounded shadow-md" role="alert">
+        <p class="font-bold">系統檢查失敗</p>
+        <p>偵測到必要的程式庫未載入。請檢查您的網路連線，本工具需要網路來載入 PDF 處理核心。</p>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-6 py-10 max-w-6xl relative">
+        
+        <!-- STEP 1: Upload -->
+        <div id="step-1" class="section fade-in">
+            <div class="flex items-center gap-3 mb-6 justify-center">
+                <span class="w-8 h-8 bg-slate-800 dark:bg-indigo-500 text-white rounded-full flex items-center justify-center font-bold text-lg">1</span>
+                <h2 class="text-2xl font-bold">請上傳 PDF 檔案</h2>
+            </div>
+
+            <div id="drop-zone" class="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-lg border-4 border-dashed border-slate-300 dark:border-slate-600 p-16 text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all group">
+                <input type="file" id="file-input" accept="application/pdf" class="hidden" />
+                <div class="space-y-6">
+                    <div class="w-28 h-28 bg-indigo-100 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto text-5xl group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-3xl font-bold mb-2">點擊選取檔案</h3>
+                        <p class="text-slate-500 dark:text-slate-400 text-lg">或直接拖曳檔案到這裡</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Info Bar -->
+        <div id="file-info" class="hidden mb-8 bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-md border-l-8 border-indigo-500 flex flex-col sm:flex-row items-center justify-between fade-in gap-4 transition-colors max-w-3xl mx-auto">
+            <div class="flex items-center gap-4 w-full sm:w-auto">
+                <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-lg flex items-center justify-center text-2xl shrink-0">
+                    <i class="fa-solid fa-file-pdf"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <h3 class="text-lg font-bold truncate max-w-[200px] sm:max-w-md" id="file-name">filename.pdf</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 font-bold" id="file-size">0 MB</p>
+                </div>
+            </div>
+            <button onclick="changeFile()" class="bg-indigo-50 dark:bg-slate-700 hover:bg-indigo-100 dark:hover:bg-slate-600 text-indigo-600 dark:text-indigo-300 px-4 py-2 rounded-lg transition-colors font-bold flex items-center gap-2 text-sm whitespace-nowrap">
+                <i class="fa-solid fa-folder-open"></i> 更換檔案
+            </button>
+        </div>
+
+        <!-- STEP 2: Mode Selection -->
+        <div id="step-2" class="hidden fade-in">
+            <div class="flex items-center gap-3 mb-6 justify-center">
+                <span class="w-8 h-8 bg-slate-800 dark:bg-indigo-500 text-white rounded-full flex items-center justify-center font-bold text-lg">2</span>
+                <h2 class="text-2xl font-bold">選擇轉換模式</h2>
+            </div>
+
+            <!-- List Container -->
+            <div class="max-w-2xl mx-auto flex flex-col gap-3">
+                
+                <!-- PPTX -->
+                <div onclick="selectMode('pptx')" id="card-pptx" class="option-card bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border-2 border-transparent cursor-pointer relative overflow-hidden group flex items-center">
+                    <div class="icon-bg w-14 h-14 bg-orange-100 dark:bg-orange-900/30 text-orange-500 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-file-powerpoint"></i>
+                    </div>
+                    <div class="ml-5 flex-grow text-left">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">PowerPoint 簡報</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">每一頁 PDF 轉為一張投影片</p>
+                    </div>
+                    <div class="check-mark hidden text-indigo-600 dark:text-indigo-400 text-2xl mr-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+                <!-- Word -->
+                <div onclick="selectMode('docx')" id="card-docx" class="option-card bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border-2 border-transparent cursor-pointer relative overflow-hidden group flex items-center">
+                    <div class="icon-bg w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-file-word"></i>
+                    </div>
+                    <div class="ml-5 flex-grow text-left">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">Word 文件</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">將圖片插入 Word 頁面中</p>
+                    </div>
+                    <div class="check-mark hidden text-indigo-600 dark:text-indigo-400 text-2xl mr-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+                <!-- ZIP -->
+                <div onclick="selectMode('zip')" id="card-zip" class="option-card bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border-2 border-transparent cursor-pointer relative overflow-hidden group flex items-center">
+                    <div class="icon-bg w-14 h-14 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-500 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-file-zipper"></i>
+                    </div>
+                    <div class="ml-5 flex-grow text-left">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">圖片懶人包</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">打包所有頁面圖片為 ZIP</p>
+                    </div>
+                    <div class="check-mark hidden text-indigo-600 dark:text-indigo-400 text-2xl mr-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+                <!-- Long Image -->
+                <div onclick="selectMode('long')" id="card-long" class="option-card bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border-2 border-transparent cursor-pointer relative overflow-hidden group flex items-center">
+                    <div class="icon-bg w-14 h-14 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-panorama"></i>
+                    </div>
+                    <div class="ml-5 flex-grow text-left">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">超長圖片</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">所有頁面垂直拼接成一張圖</p>
+                    </div>
+                    <div class="check-mark hidden text-indigo-600 dark:text-indigo-400 text-2xl mr-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+                <!-- Single Select -->
+                <div onclick="selectMode('single')" id="card-single" class="option-card bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border-2 border-transparent cursor-pointer relative overflow-hidden group flex items-center">
+                    <div class="icon-bg w-14 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-500 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-images"></i>
+                    </div>
+                    <div class="ml-5 flex-grow text-left">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">單張選取</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">預覽並單獨下載特定頁面</p>
+                    </div>
+                    <div class="check-mark hidden text-indigo-600 dark:text-indigo-400 text-2xl mr-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- STEP 2.5: Advanced Settings -->
+        <div id="step-settings" class="hidden fade-in mt-6">
+            <div class="max-w-2xl mx-auto bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-2 mb-4">
+                    <i class="fa-solid fa-sliders text-indigo-500"></i>
+                    <h3 class="font-bold text-lg">進階設定</h3>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Page Range -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">頁數範圍</label>
+                        <input type="text" id="setting-range" placeholder="例如: 1-5, 8, 10" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder-slate-400 text-sm">
+                        <p class="text-xs text-slate-400 mt-1">留空則轉換全部頁面</p>
+                    </div>
+
+                    <!-- Quality -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">輸出畫質</label>
+                        <div class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                            <button onclick="setQuality('low')" class="quality-btn flex-1 py-1 text-sm rounded-md font-bold transition-all" data-q="low">低</button>
+                            <button onclick="setQuality('med')" class="quality-btn flex-1 py-1 text-sm rounded-md font-bold transition-all bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" data-q="med">中</button>
+                            <button onclick="setQuality('high')" class="quality-btn flex-1 py-1 text-sm rounded-md font-bold transition-all" data-q="high">高</button>
+                        </div>
+                    </div>
+
+                    <!-- Watermark -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">浮水印文字</label>
+                        <input type="text" id="setting-watermark" placeholder="例如: 僅供內部使用" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Execute -->
+        <div id="step-3" class="hidden mt-8 text-center fade-in pb-10">
+            <button onclick="prepareAndExecute()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-extrabold py-4 px-12 rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all transform active:scale-95 flex items-center justify-center gap-3 mx-auto">
+                <span>開始轉換</span>
+                <i class="fa-solid fa-rocket"></i>
+            </button>
+        </div>
+
+        <!-- Process Loading -->
+        <div id="process-area" class="hidden mt-12 max-w-3xl mx-auto bg-white dark:bg-slate-800 p-10 rounded-3xl shadow-xl text-center fade-in border border-slate-100 dark:border-slate-700">
+            <h3 class="text-2xl font-bold mb-4" id="status-text">魔法施展中...</h3>
+            <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-6 overflow-hidden mb-3 max-w-2xl mx-auto">
+                <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-6 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-slate-500 dark:text-slate-400 font-bold text-lg" id="percent-text">0%</p>
+        </div>
+
+        <!-- STEP 4: Result -->
+        <div id="result-area" class="hidden mt-8 max-w-5xl mx-auto bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl fade-in border border-slate-200 dark:border-slate-700 relative">
+            <div class="flex flex-col items-center justify-center mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                <div class="w-16 h-16 bg-green-100 dark:bg-green-900/50 text-green-500 rounded-full flex items-center justify-center text-3xl mb-4 animate-bounce">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <h3 class="text-3xl font-bold">轉換完成！</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-bold mt-2">請確認下方的預覽結果</p>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mb-8 sticky top-20 z-10 py-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur">
+                <button onclick="backToMenu()" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold py-3 px-6 rounded-xl transition-colors text-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-layer-group"></i> 其他格式
+                </button>
+                <button onclick="triggerDownload()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-10 rounded-xl shadow-lg hover:shadow-xl transition-transform active:scale-95 text-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> 下載檔案
+                </button>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-6 border-inner shadow-inner">
+                <div id="preview-content" class="min-h-[200px] flex justify-center"></div>
+            </div>
+        </div>
+
+        <!-- Single Mode Grid -->
+        <div id="single-select-area" class="hidden mt-8 fade-in">
+            <div class="flex flex-col sm:flex-row justify-between items-end mb-6 px-2 gap-4">
+                <div>
+                    <h3 class="text-2xl font-bold">請點擊頁面進行預覽</h3>
+                    <p class="text-slate-500 dark:text-slate-400 font-bold">選取您要下載的那一頁</p>
+                </div>
+                <button onclick="backToMenu()" class="text-slate-500 hover:text-indigo-500 font-bold px-4 py-2 flex items-center gap-2">
+                    <i class="fa-solid fa-arrow-left"></i> 回主選單
+                </button>
+            </div>
+            <div id="single-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+        </div>
+
+    </main>
+
+    <!-- Modal: Password -->
+    <div id="password-modal" class="fixed inset-0 bg-slate-900/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+            <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">此 PDF 已加密</h3>
+            <p class="text-slate-500 dark:text-slate-400 mb-6 text-sm">請輸入密碼以繼續處理</p>
+            <input type="password" id="pdf-password" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-3 mb-4 focus:ring-2 focus:ring-red-500 outline-none" placeholder="輸入密碼...">
+            <button onclick="submitPassword()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">解鎖檔案</button>
+        </div>
+    </div>
+
+    <!-- Modal: Preview -->
+    <div id="preview-modal" class="fixed inset-0 bg-slate-900/90 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col modal-enter overflow-hidden">
+            <div class="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+                <h3 class="font-extrabold text-xl flex items-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass-plus text-indigo-500"></i> 單頁預覽
+                </h3>
+                <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-red-500 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-8 bg-slate-200 dark:bg-slate-900 overflow-y-auto flex-grow flex justify-center items-start">
+                <img id="modal-img" src="" class="max-w-full shadow-2xl border-4 border-white dark:border-slate-600 rounded-lg">
+            </div>
+            <div class="p-5 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-end gap-4">
+                <button onclick="closeModal()" class="px-6 py-3 rounded-xl text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-700">再看看</button>
+                <button onclick="confirmSingleDownload()" class="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2">
+                    <i class="fa-solid fa-file-export"></i> 下載此頁
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 dark:bg-slate-950 text-white py-12 mt-auto">
+        <div class="container mx-auto text-center">
+            <div class="mb-6">
+                <h2 class="text-2xl font-extrabold mb-2 text-slate-200">智德_ PDF轉換工具_ V02</h2>
+                <div class="w-16 h-1 bg-indigo-500 mx-auto rounded-full"></div>
+            </div>
+            <div class="inline-block bg-slate-700/50 border border-slate-600 rounded-2xl px-10 py-6 backdrop-blur-sm">
+                <div class="flex flex-col md:flex-row items-center gap-4 md:gap-8">
+                    <div class="text-center md:text-right">
+                        <p class="text-slate-400 text-xs uppercase tracking-widest font-bold mb-1">DESIGNER</p>
+                        <p class="text-2xl font-extrabold text-white tracking-wide">王智德</p>
+                    </div>
+                    <div class="hidden md:block w-px h-12 bg-slate-500"></div>
+                    <div class="text-center md:text-left">
+                        <p class="text-slate-400 text-xs uppercase tracking-widest font-bold mb-1">CONTACT</p>
+                        <a href="mailto:weisun0254@gmail.com" class="text-xl font-bold text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">weisun0254@gmail.com</a>
+                    </div>
+                </div>
+            </div>
+            <p class="text-slate-500 text-xs mt-8 font-bold">&copy; 2025 All Rights Reserved. Client-side Processing.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- 系統檢查 ---
+        function checkSystem() {
+            if (typeof pdfjsLib === 'undefined') {
+                document.getElementById('system-alert').classList.remove('hidden');
+            }
+        }
+
+        // --- State ---
+        let currentFile = null;
+        let fileBuffer = null;
+        let selectedModeId = null;
+        let pdfDoc = null;
+        let generatedBlob = null;
+        let generatedFileName = "";
+        let selectedPageNum = 0;
+        let qualityLevel = 'med'; // low, med, high
+
+        // --- Quality Config ---
+        const QUALITY_CONFIG = {
+            'low': { scale: 1.0, quality: 0.6 },
+            'med': { scale: 1.5, quality: 0.8 },
+            'high': { scale: 2.5, quality: 0.95 }
+        };
+
+        // --- Theme Logic ---
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            document.documentElement.classList.toggle('light');
+        }
+
+        // --- Upload Logic ---
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+        dropZone.addEventListener('dragenter', () => dropZone.classList.add('border-indigo-400', 'bg-indigo-50', 'dark:bg-slate-700'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400', 'bg-indigo-50', 'dark:bg-slate-700'));
+        dropZone.addEventListener('drop', (e) => {
+            dropZone.classList.remove('border-indigo-400', 'bg-indigo-50', 'dark:bg-slate-700');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', function() { handleFiles(this.files); });
+
+        async function handleFiles(files) {
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                currentFile = files[0];
+                fileBuffer = await currentFile.arrayBuffer();
+                
+                try {
+                    await loadPDF(fileBuffer); // Try load
+                    updateFileInfoUI();
+                    document.getElementById('step-1').classList.add('hidden');
+                    document.getElementById('file-info').classList.remove('hidden');
+                    resetToMenuUI();
+                } catch (error) {
+                    if (error.name === 'PasswordException') {
+                        document.getElementById('password-modal').classList.remove('hidden');
+                    } else {
+                        alert('無法讀取 PDF: ' + error.message);
+                    }
+                }
+            } else {
+                alert('請上傳 PDF 檔案');
+            }
+        }
+
+        async function loadPDF(buffer, password = null) {
+            const params = { data: buffer };
+            if (password) params.password = password;
+            pdfDoc = await pdfjsLib.getDocument(params).promise;
+            return pdfDoc;
+        }
+
+        async function submitPassword() {
+            const pwd = document.getElementById('pdf-password').value;
+            try {
+                await loadPDF(fileBuffer, pwd);
+                document.getElementById('password-modal').classList.add('hidden');
+                updateFileInfoUI();
+                document.getElementById('step-1').classList.add('hidden');
+                document.getElementById('file-info').classList.remove('hidden');
+                resetToMenuUI();
+            } catch (e) {
+                alert('密碼錯誤，請重試');
+            }
+        }
+
+        function updateFileInfoUI() {
+            document.getElementById('file-name').innerText = currentFile.name;
+            document.getElementById('file-size').innerText = (currentFile.size / 1024 / 1024).toFixed(2) + ' MB';
+        }
+
+        function changeFile() { fileInput.click(); }
+
+        function backToMenu() { resetToMenuUI(); }
+
+        function resetToMenuUI() {
+            document.getElementById('result-area').classList.add('hidden');
+            document.getElementById('single-select-area').classList.add('hidden');
+            document.getElementById('process-area').classList.add('hidden');
+            document.getElementById('step-3').classList.add('hidden');
+            document.getElementById('step-settings').classList.add('hidden');
+            
+            const step2 = document.getElementById('step-2');
+            step2.classList.remove('hidden');
+            step2.scrollIntoView({behavior: 'smooth'});
+        }
+
+        function selectMode(id) {
+            selectedModeId = id;
+            document.querySelectorAll('.option-card').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`card-${id}`).classList.add('selected');
+            
+            const step3 = document.getElementById('step-3');
+            step3.classList.remove('hidden');
+
+            // Show Settings for batch modes
+            const stepSettings = document.getElementById('step-settings');
+            if(id !== 'single') {
+                stepSettings.classList.remove('hidden');
+                step3.scrollIntoView({behavior: 'smooth'});
+            } else {
+                stepSettings.classList.add('hidden'); // Single mode doesn't need range/settings beforehand
+                step3.scrollIntoView({behavior: 'smooth'});
+            }
+        }
+
+        function setQuality(lvl) {
+            qualityLevel = lvl;
+            document.querySelectorAll('.quality-btn').forEach(btn => {
+                if(btn.dataset.q === lvl) {
+                    btn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-indigo-600', 'dark:text-indigo-400');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-indigo-600', 'dark:text-indigo-400');
+                }
+            });
+        }
+
+        // --- Core Execution Logic ---
+        async function prepareAndExecute() {
+            // UI Hide
+            document.getElementById('step-2').classList.add('hidden');
+            document.getElementById('step-settings').classList.add('hidden');
+            document.getElementById('step-3').classList.add('hidden');
+            document.getElementById('process-area').classList.remove('hidden');
+            
+            const previewContent = document.getElementById('preview-content');
+            previewContent.innerHTML = '';
+            generatedBlob = null;
+
+            // Parse Settings
+            const rangeStr = document.getElementById('setting-range').value;
+            const watermarkTxt = document.getElementById('setting-watermark').value;
+            const pagesToProcess = parsePageRange(rangeStr, pdfDoc.numPages);
+            const qualityCfg = QUALITY_CONFIG[qualityLevel];
+
+            try {
+                // --- Single Mode Logic ---
+                if (selectedModeId === 'single') {
+                    document.getElementById('process-area').classList.add('hidden');
+                    document.getElementById('single-select-area').classList.remove('hidden');
+                    await renderSingleGrid(watermarkTxt); // Wait for grid render
+                    return;
+                }
+
+                // --- Batch Logic (Chunking) ---
+                if (selectedModeId === 'long') {
+                    previewContent.className = "flex justify-center overflow-x-auto w-full p-4 bg-slate-200 dark:bg-slate-900 rounded-xl";
+                } else {
+                    previewContent.className = "grid grid-cols-2 md:grid-cols-4 gap-4 w-full";
+                }
+
+                if (selectedModeId === 'pptx') await processPPTX(pagesToProcess, qualityCfg, watermarkTxt);
+                else if (selectedModeId === 'docx') await processDOCX(pagesToProcess, qualityCfg, watermarkTxt);
+                else if (selectedModeId === 'zip') await processZIP(pagesToProcess, qualityCfg, watermarkTxt);
+                else if (selectedModeId === 'long') await processLONG(pagesToProcess, qualityCfg, watermarkTxt);
+
+                // Finish
+                document.getElementById('process-area').classList.add('hidden');
+                document.getElementById('result-area').classList.remove('hidden');
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); // Celebrate!
+
+            } catch (err) {
+                console.error(err);
+                alert("錯誤：" + err.message);
+                resetToMenuUI();
+            }
+        }
+
+        // --- Range Parser ---
+        function parsePageRange(str, max) {
+            if(!str.trim()) return Array.from({length: max}, (_, i) => i + 1);
+            const pages = new Set();
+            const parts = str.split(',');
+            parts.forEach(p => {
+                if(p.includes('-')) {
+                    const [start, end] = p.split('-').map(n => parseInt(n));
+                    if(!isNaN(start) && !isNaN(end)) {
+                        for(let i=start; i<=end; i++) if(i>=1 && i<=max) pages.add(i);
+                    }
+                } else {
+                    const num = parseInt(p);
+                    if(!isNaN(num) && num>=1 && num<=max) pages.add(num);
+                }
+            });
+            return Array.from(pages).sort((a,b)=>a-b);
+        }
+
+        // --- Processors with Async Chunking ---
+        const nextTick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+        async function processPPTX(pages, q, wm) {
+            let pptx = new PptxGenJS();
+            pptx.layout = 'LAYOUT_16x9';
+            for (let i = 0; i < pages.length; i++) {
+                const pgNum = pages[i];
+                updateProgress(i + 1, pages.length, '處理頁面');
+                
+                const page = await pdfDoc.getPage(pgNum);
+                const { canvas: hi } = await renderPage(page, q.scale, wm);
+                pptx.addSlide().addImage({ data: hi.toDataURL('image/jpeg', q.quality), x:0, y:0, w:'100%', h:'100%', sizing:{type:'contain', w:'100%', h:'100%'} });
+                
+                // Low res preview
+                const { canvas: lo } = await renderPage(page, 0.4, wm);
+                addToGrid(lo, pgNum);
+                await nextTick(); // Breath
+            }
+            generatedBlob = await pptx.write({ outputType: 'blob' });
+            generatedFileName = currentFile.name.replace('.pdf', '.pptx');
+        }
+
+        async function processDOCX(pages, q, wm) {
+            const children = [];
+            for (let i = 0; i < pages.length; i++) {
+                const pgNum = pages[i];
+                updateProgress(i + 1, pages.length, '處理 Word');
+                
+                const page = await pdfDoc.getPage(pgNum);
+                const { canvas, w, h } = await renderPage(page, q.scale, wm); // Use quality scale setting
+                const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q.quality));
+                
+                children.push(new docx.Paragraph({ children: [new docx.ImageRun({ data: await blob.arrayBuffer(), transformation: { width: 550, height: (550/w)*h } })] }));
+                if(i < pages.length - 1) children.push(new docx.Paragraph({ children: [new docx.PageBreak()] }));
+                
+                const { canvas: lo } = await renderPage(page, 0.4, wm);
+                addToGrid(lo, pgNum);
+                await nextTick();
+            }
+            const doc = new docx.Document({ sections: [{ children }] });
+            generatedBlob = await docx.Packer.toBlob(doc);
+            generatedFileName = currentFile.name.replace('.pdf', '.docx');
+        }
+
+        async function processZIP(pages, q, wm) {
+            const zip = new JSZip();
+            const f = zip.folder("images");
+            for (let i = 0; i < pages.length; i++) {
+                const pgNum = pages[i];
+                updateProgress(i + 1, pages.length, '輸出圖片');
+                
+                const page = await pdfDoc.getPage(pgNum);
+                const { canvas } = await renderPage(page, q.scale, wm);
+                f.file(`page_${pgNum}.png`, await new Promise(r => canvas.toBlob(r, 'image/png')));
+                
+                const { canvas: lo } = await renderPage(page, 0.4, wm);
+                addToGrid(lo, pgNum);
+                await nextTick();
+            }
+            generatedBlob = await zip.generateAsync({type:"blob"});
+            generatedFileName = currentFile.name.replace('.pdf', '_images.zip');
+        }
+
+        async function processLONG(pages, q, wm) {
+            let totalH=0, maxW=0, pageData=[];
+            for(let i=0; i<pages.length; i++) {
+                updateProgress(i, pages.length, '計算尺寸');
+                const p = await pdfDoc.getPage(pages[i]);
+                const vp = p.getViewport({scale: q.scale}); // Use quality setting
+                pageData.push({p, vp});
+                totalH += vp.height;
+                if(vp.width > maxW) maxW = vp.width;
+            }
+            const c = document.createElement('canvas'); c.width=maxW; c.height=totalH;
+            const ctx = c.getContext('2d');
+            let y=0;
+            for(let i=0; i<pageData.length; i++) {
+                updateProgress(i+1, pages.length, '拼接長圖');
+                const {p, vp} = pageData[i];
+                const tmp = document.createElement('canvas'); tmp.width=vp.width; tmp.height=vp.height;
+                await renderOnContext(p, tmp.getContext('2d'), vp, wm); // Render with watermark
+                ctx.drawImage(tmp, (maxW-vp.width)/2, y);
+                y+=vp.height;
+                await nextTick();
+            }
+            generatedBlob = await new Promise(r=>c.toBlob(r, 'image/png'));
+            generatedFileName = currentFile.name.replace('.pdf', '_long.png');
+            
+            // Preview
+            const img = document.createElement('img'); img.src = c.toDataURL(); img.className = "max-w-full shadow-lg rounded-lg";
+            document.getElementById('preview-content').appendChild(img);
+        }
+
+        async function renderSingleGrid(wm) {
+            const grid = document.getElementById('single-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const { canvas } = await renderPage(page, 0.4, wm);
+                
+                const item = document.createElement('div');
+                item.className = "cursor-pointer group relative bg-white dark:bg-slate-800 p-2 rounded-xl border-2 border-slate-100 dark:border-slate-700 hover:border-indigo-500 shadow-sm hover:shadow-lg transition-all";
+                item.onclick = () => openModal(i, wm);
+                
+                const img = document.createElement('img'); img.src = canvas.toDataURL(); img.className = "w-full rounded-lg";
+                const badge = document.createElement('div'); badge.className = "absolute top-4 right-4 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity"; badge.innerText = "預覽";
+                const label = document.createElement('div'); label.innerText = `第 ${i} 頁`; label.className = "text-center mt-2 font-bold text-slate-500 dark:text-slate-400";
+                
+                item.append(img, badge, label);
+                grid.appendChild(item);
+                if(i % 5 === 0) await nextTick();
+            }
+        }
+
+        // --- Rendering Helpers ---
+        async function renderPage(page, scale, watermark) {
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            await renderOnContext(page, context, viewport, watermark);
+            return { canvas, w: viewport.width, h: viewport.height };
+        }
+
+        async function renderOnContext(page, context, viewport, watermark) {
+            await page.render({ canvasContext: context, viewport }).promise;
+            if(watermark && watermark.trim() !== "") {
+                context.save();
+                context.font = `bold ${viewport.width/15}px sans-serif`;
+                context.fillStyle = "rgba(200, 200, 200, 0.5)";
+                context.textAlign = "center";
+                context.textBaseline = "middle";
+                context.translate(viewport.width/2, viewport.height/2);
+                context.rotate(-45 * Math.PI / 180);
+                context.fillText(watermark, 0, 0);
+                context.restore();
+            }
+        }
+
+        // --- Single Modal ---
+        async function openModal(pageNum, wm) {
+            selectedPageNum = pageNum;
+            const modal = document.getElementById('preview-modal');
+            const img = document.getElementById('modal-img');
+            modal.classList.remove('hidden');
+            img.style.opacity = '0.5';
+            
+            const page = await pdfDoc.getPage(pageNum);
+            const { canvas } = await renderPage(page, 1.5, wm);
+            img.src = canvas.toDataURL();
+            img.style.opacity = '1';
+        }
+
+        function closeModal() { document.getElementById('preview-modal').classList.add('hidden'); }
+
+        async function confirmSingleDownload() {
+            if (!selectedPageNum) return;
+            const btn = event.currentTarget;
+            const orgHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 處理中';
+            
+            // Single mode skips default settings step, so we default to no watermark unless configured elsewhere.
+            const wm = ""; 
+
+            const page = await pdfDoc.getPage(selectedPageNum);
+            const { canvas } = await renderPage(page, 3.0, wm);
+            canvas.toBlob(blob => {
+                saveAs(blob, currentFile.name.replace('.pdf', `_page_${selectedPageNum}.png`));
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 完成';
+                confetti({ particleCount: 50, spread: 50, origin: { y: 0.8 } });
+                setTimeout(() => { btn.innerHTML = orgHtml; closeModal(); }, 1500);
+            });
+        }
+
+        // --- Utils ---
+        function addToGrid(canvas, i) {
+            const div = document.createElement('div');
+            div.className = "bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm";
+            const img = document.createElement('img'); img.src = canvas.toDataURL(); img.className = "w-full rounded mb-1";
+            const l = document.createElement('div'); l.innerText = `P. ${i}`; l.className = "text-center text-xs font-bold text-slate-500 dark:text-slate-400";
+            div.append(img, l);
+            document.getElementById('preview-content').appendChild(div);
+        }
+
+        function updateProgress(c, t, txt) {
+            const p = Math.round((c/t)*100);
+            document.getElementById('progress-bar').style.width = p+'%';
+            document.getElementById('percent-text').innerText = p+'%';
+            document.getElementById('status-text').innerText = `${txt} (${c}/${t})`;
+        }
+
+        function triggerDownload() { if(generatedBlob) saveAs(generatedBlob, generatedFileName); }
+    </script>
+</body>
+</html>
