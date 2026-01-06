@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProRecorder - 企業級錄音工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 確保字型美觀 */
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        /* 隱藏元素工具類 */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-100 flex flex-col items-center p-4 text-slate-800">
+
+    <!-- 主錄音卡片 -->
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden mb-6 relative">
+        
+        <!-- 背景運作提示標籤 (預設隱藏) -->
+        <div id="recordingBadge" class="hidden absolute top-4 right-4 items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-[10px] font-bold animate-pulse border border-blue-200 z-10">
+            <!-- Icon: ShieldCheck -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+            安全錄製中
+        </div>
+
+        <!-- 企業藍 Header -->
+        <div class="bg-blue-900 text-white p-6 text-center shadow-md relative">
+            <h1 class="text-xl font-bold tracking-widest flex items-center justify-center gap-2">
+                <!-- Icon: Briefcase -->
+                <svg class="text-blue-300 fill-current" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+                <span>ProRecorder</span>
+            </h1>
+            <p id="engineInfo" class="text-blue-300 text-[10px] mt-1 font-mono uppercase tracking-wider">
+                System Initializing...
+            </p>
+        </div>
+
+        <!-- 控制區 -->
+        <div class="p-8 flex flex-col items-center gap-8 bg-gradient-to-b from-white to-blue-50/30">
+            
+            <div class="flex flex-col items-center">
+                <!-- 時間顯示 -->
+                <div id="timerDisplay" class="text-6xl font-mono font-bold text-blue-900 tracking-tighter tabular-nums drop-shadow-sm">
+                    00:00
+                </div>
+                <!-- 狀態顯示 -->
+                <div id="statusBadge" class="mt-3 px-4 py-1.5 rounded-full text-xs font-bold border bg-slate-100 text-slate-500 border-slate-200">
+                    準備就緒
+                </div>
+            </div>
+
+            <!-- 按鈕群組 -->
+            <div class="flex items-center gap-6 mt-2 relative w-full justify-center h-24">
+                
+                <!-- 初始狀態按鈕 (Start) -->
+                <div id="initialControls" class="flex items-center gap-6 absolute transition-all duration-300">
+                    <!-- 重置按鈕 (有錄音檔時顯示) -->
+                    <button id="btnReset" class="hidden w-14 h-14 bg-white border border-slate-200 hover:bg-slate-50 text-slate-400 rounded-full flex items-center justify-center transition-all shadow-sm">
+                        <!-- Icon: RefreshCw -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                    </button>
+                    
+                    <!-- 開始錄音按鈕 -->
+                    <button id="btnStart" class="w-24 h-24 bg-blue-700 hover:bg-blue-800 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-300 transition-transform active:scale-95 group border-4 border-blue-50">
+                        <!-- Icon: Mic -->
+                        <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/><line x1="8" x2="16" y1="22" y2="22"/></svg>
+                    </button>
+                </div>
+
+                <!-- 錄音中狀態按鈕 (Pause/Stop) -->
+                <div id="recordingControls" class="flex items-center gap-6 absolute opacity-0 pointer-events-none transition-all duration-300 scale-90">
+                    <!-- 暫停/恢復按鈕 -->
+                    <button id="btnPauseResume" class="w-16 h-16 bg-amber-400 hover:bg-amber-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 border-4 border-white">
+                        <!-- Icon: Pause (預設) -->
+                        <svg id="iconPause" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+                        <!-- Icon: Play (隱藏) -->
+                        <svg id="iconResume" class="hidden" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    </button>
+                    
+                    <!-- 停止按鈕 -->
+                    <button id="btnStop" class="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-xl transition-transform active:scale-95 border-4 border-white">
+                        <!-- Icon: Square -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- 預覽播放與下載區 (錄音後顯示) -->
+            <div id="previewArea" class="hidden w-full space-y-4 animate-[slideIn_0.5s_ease-out] pt-6 border-t border-blue-100">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 shadow-inner">
+                    <div class="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <!-- Icon: Volume2 -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                        錄音預覽
+                    </div>
+                    <audio id="audioPlayer" controls class="w-full h-8 accent-blue-700"></audio>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="btnDownloadIOS" class="flex flex-col items-center justify-center gap-1 py-3 bg-white hover:bg-slate-50 text-slate-700 rounded-xl border border-slate-200 shadow-sm active:scale-95 transition-all">
+                        <!-- Icon: Apple -->
+                        <svg class="text-slate-800" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg>
+                        <span class="text-xs font-bold">iOS MP4</span>
+                    </button>
+                    <button id="btnDownloadAndroid" class="flex flex-col items-center justify-center gap-1 py-3 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl border border-blue-200 shadow-sm active:scale-95 transition-all">
+                        <!-- Icon: Smartphone -->
+                        <svg class="text-blue-600" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                        <span class="text-xs font-bold">Android WebM</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 歷史清單 -->
+    <div class="w-full max-w-md space-y-3">
+        <h3 class="text-sm font-bold text-slate-500 flex items-center gap-2 px-2 uppercase tracking-wider">
+            <!-- Icon: Database -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            本機加密歷史庫
+        </h3>
+        
+        <div id="emptyState" class="hidden p-8 text-center bg-white/50 rounded-2xl border border-slate-200 border-dashed text-slate-400 text-xs">
+            您的錄音檔案將安全儲存於此
+        </div>
+
+        <div id="historyList" class="space-y-3 pb-10">
+            <!-- 歷史紀錄將動態插入於此 -->
+        </div>
+    </div>
+
+    <script>
+        // --- 變數與設定 ---
+        const DB_NAME = 'EnterpriseRecorderDB';
+        const STORE_NAME = 'recordings';
+        const DB_VERSION = 1;
+        
+        let db = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let isPaused = false;
+        let nativeMimeType = "";
+        
+        // 計時器變數
+        let timerInterval = null;
+        let startTime = 0;
+        let accumulatedTime = 0;
+        let currentDuration = 0; // 秒
+
+        // 當前錄音暫存
+        let currentBlob = null;
+        let currentUrl = null;
+
+        // DOM 元素
+        const elTimer = document.getElementById('timerDisplay');
+        const elStatus = document.getElementById('statusBadge');
+        const elEngineInfo = document.getElementById('engineInfo');
+        const elRecordingBadge = document.getElementById('recordingBadge');
+        
+        const elInitialControls = document.getElementById('initialControls');
+        const elRecordingControls = document.getElementById('recordingControls');
+        const elPreviewArea = document.getElementById('previewArea');
+        
+        const btnStart = document.getElementById('btnStart');
+        const btnStop = document.getElementById('btnStop');
+        const btnPauseResume = document.getElementById('btnPauseResume');
+        const btnReset = document.getElementById('btnReset');
+        
+        const iconPause = document.getElementById('iconPause');
+        const iconResume = document.getElementById('iconResume');
+        
+        const audioPlayer = document.getElementById('audioPlayer');
+        const btnDownloadIOS = document.getElementById('btnDownloadIOS');
+        const btnDownloadAndroid = document.getElementById('btnDownloadAndroid');
+        
+        const elHistoryList = document.getElementById('historyList');
+        const elEmptyState = document.getElementById('emptyState');
+
+        // --- 初始化 IndexedDB ---
+        window.onload = function() {
+            initDB();
+            detectMimeType();
+        };
+
+        function detectMimeType() {
+            if (typeof MediaRecorder === 'undefined') {
+                elEngineInfo.innerText = "Error: MediaRecorder Not Supported";
+                return;
+            }
+            if (MediaRecorder.isTypeSupported('audio/mp4')) nativeMimeType = 'audio/mp4';
+            else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) nativeMimeType = 'audio/webm;codecs=opus';
+            else nativeMimeType = 'audio/webm';
+            
+            elEngineInfo.innerText = `Enterprise Grade • ${nativeMimeType.split(';')[0]}`;
+        }
+
+        function initDB() {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = (e) => {
+                const database = e.target.result;
+                if (!database.objectStoreNames.contains(STORE_NAME)) {
+                    database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                setStatus("準備就緒", "ready");
+                loadRecords();
+            };
+            request.onerror = (e) => {
+                console.error("DB Error", e);
+                setStatus("資料庫錯誤", "error");
+            };
+        }
+
+        // --- 錄音邏輯 ---
+        btnStart.onclick = startRecording;
+        btnStop.onclick = stopRecording;
+        btnPauseResume.onclick = togglePause;
+        btnReset.onclick = resetRecorder;
+
+        async function startRecording() {
+            try {
+                setStatus("請求權限...", "loading");
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const options = nativeMimeType ? { mimeType: nativeMimeType } : {};
+                mediaRecorder = new MediaRecorder(stream, options);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    finalizeRecording(stream);
+                };
+
+                mediaRecorder.start(100);
+                
+                // UI 更新
+                isRecording = true;
+                isPaused = false;
+                toggleControls(true);
+                elRecordingBadge.classList.remove('hidden');
+                elPreviewArea.classList.add('hidden');
+                elRecordingBadge.classList.add('flex');
+                setStatus("錄音進行中...", "recording");
+
+                // 計時開始
+                startTimer();
+
+            } catch (err) {
+                console.error(err);
+                alert("無法存取麥克風，請確認權限設定。");
+                setStatus("錯誤：無權限", "error");
+            }
+        }
+
+        function togglePause() {
+            if (isPaused) {
+                // 恢復
+                mediaRecorder.resume();
+                isPaused = false;
+                iconPause.classList.remove('hidden');
+                iconResume.classList.add('hidden');
+                setStatus("錄音進行中...", "recording");
+                resumeTimer();
+            } else {
+                // 暫停
+                mediaRecorder.pause();
+                isPaused = true;
+                iconPause.classList.add('hidden');
+                iconResume.classList.remove('hidden');
+                setStatus("錄音暫停", "paused");
+                pauseTimer();
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                stopTimer();
+                isRecording = false;
+                isPaused = false;
+                toggleControls(false);
+                elRecordingBadge.classList.add('hidden');
+                elRecordingBadge.classList.remove('flex');
+                setStatus("錄音完成", "success");
+            }
+        }
+
+        function finalizeRecording(stream) {
+            // 計算最終秒數
+            const now = Date.now();
+            currentDuration = Math.floor((accumulatedTime + (now - startTime)) / 1000);
+            
+            // 建立 Blob
+            currentBlob = new Blob(audioChunks, { type: nativeMimeType || 'audio/webm' });
+            currentUrl = URL.createObjectURL(currentBlob);
+            
+            // 顯示預覽
+            audioPlayer.src = currentUrl;
+            elPreviewArea.classList.remove('hidden');
+            btnReset.classList.remove('hidden');
+
+            // 存入資料庫
+            saveToDB(currentBlob, currentDuration);
+            
+            // 關閉串流
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        function resetRecorder() {
+            currentBlob = null;
+            currentUrl = null;
+            audioPlayer.src = "";
+            elTimer.innerText = "00:00";
+            elPreviewArea.classList.add('hidden');
+            btnReset.classList.add('hidden');
+            setStatus("準備就緒", "ready");
+        }
+
+        // --- 計時器邏輯 (Delta) ---
+        function startTimer() {
+            startTime = Date.now();
+            accumulatedTime = 0;
+            currentDuration = 0;
+            elTimer.innerText = "00:00";
+            timerInterval = setInterval(updateTimer, 500);
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            accumulatedTime += (Date.now() - startTime);
+        }
+
+        function resumeTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 500);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            const delta = now - startTime;
+            const totalSeconds = Math.floor((accumulatedTime + delta) / 1000);
+            currentDuration = totalSeconds;
+            
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = totalSeconds % 60;
+            elTimer.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // --- UI Helper ---
+        function toggleControls(recording) {
+            if (recording) {
+                elInitialControls.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
+                elRecordingControls.classList.remove('opacity-0', 'pointer-events-none', 'scale-90');
+            } else {
+                elInitialControls.classList.remove('opacity-0', 'pointer-events-none', 'scale-90');
+                elRecordingControls.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
+                iconPause.classList.remove('hidden');
+                iconResume.classList.add('hidden');
+            }
+        }
+
+        function setStatus(text, type) {
+            elStatus.innerText = text;
+            let classes = "bg-slate-100 text-slate-500 border-slate-200"; // ready
+            
+            if (type === 'recording') classes = "bg-red-50 text-red-600 border-red-100 animate-pulse";
+            else if (type === 'paused') classes = "bg-amber-50 text-amber-600 border-amber-100";
+            else if (type === 'success') classes = "bg-blue-50 text-blue-600 border-blue-100";
+            else if (type === 'error') classes = "bg-red-100 text-red-800 border-red-200";
+
+            elStatus.className = `mt-3 px-4 py-1.5 rounded-full text-xs font-bold border ${classes}`;
+        }
+
+        // --- 防手殘關閉 ---
+        window.addEventListener('beforeunload', (e) => {
+            if (isRecording) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // --- 資料庫操作 ---
+        function saveToDB(blob, duration) {
+            if (!db) return;
+            const tx = db.transaction([STORE_NAME], 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const now = new Date();
+            const record = {
+                blob: blob,
+                timestamp: now.getTime(),
+                dateStr: now.toLocaleString(),
+                duration: duration
+            };
+            store.add(record);
+            tx.oncomplete = () => loadRecords();
+        }
+
+        function loadRecords() {
+            if (!db) return;
+            const tx = db.transaction([STORE_NAME], 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.getAll();
+            req.onsuccess = () => {
+                const records = req.result.sort((a, b) => b.timestamp - a.timestamp);
+                renderHistory(records);
+            };
+        }
+
+        function deleteRecord(id) {
+            if (!confirm("確定刪除此紀錄？")) return;
+            const tx = db.transaction([STORE_NAME], 'readwrite');
+            tx.objectStore(STORE_NAME).delete(id);
+            tx.oncomplete = () => loadRecords();
+        }
+
+        function renderHistory(records) {
+            elHistoryList.innerHTML = '';
+            if (records.length === 0) {
+                elEmptyState.classList.remove('hidden');
+                return;
+            }
+            elEmptyState.classList.add('hidden');
+
+            records.forEach(record => {
+                const mins = Math.floor(record.duration / 60).toString().padStart(2,'0');
+                const secs = (record.duration % 60).toString().padStart(2,'0');
+                
+                const item = document.createElement('div');
+                item.className = "bg-white p-4 rounded-xl border-l-4 border-blue-600 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow";
+                item.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-bold text-sm text-slate-800">${record.dateStr}</div>
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                                DURATION: ${mins}:${secs}
+                            </div>
+                        </div>
+                        <button onclick="deleteRecord(${record.id})" class="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 border-t border-slate-50 pt-3 mt-1">
+                        <button onclick="handleDownloadDB(${record.id}, 'ios')" class="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-100">
+                            <svg class="text-slate-800" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg>
+                            iOS
+                        </button>
+                        <button onclick="handleDownloadDB(${record.id}, 'android')" class="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors border border-blue-100">
+                            <svg class="text-blue-600" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                            Android
+                        </button>
+                    </div>
+                `;
+                elHistoryList.appendChild(item);
+            });
+        }
+
+        // --- 下載處理 ---
+        // 1. 當前錄音下載
+        btnDownloadIOS.onclick = () => downloadFile(currentBlob, 'ios');
+        btnDownloadAndroid.onclick = () => downloadFile(currentBlob, 'android');
+
+        // 2. 歷史紀錄下載 (需先讀取 Blob)
+        window.handleDownloadDB = function(id, type) {
+            const tx = db.transaction([STORE_NAME], 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(id);
+            req.onsuccess = () => {
+                const record = req.result;
+                downloadFile(record.blob, type, record.timestamp);
+            };
+        };
+
+        function downloadFile(blob, type, customTime = null) {
+            if (!blob) return;
+            const now = customTime ? new Date(customTime) : new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const hour = now.getHours().toString().padStart(2, '0');
+            const min = now.getMinutes().toString().padStart(2, '0');
+            
+            const filename = `${year}${month}${day}-${hour}${min}_錄音檔.${type === 'ios' ? 'mp4' : 'webm'}`;
+            const finalBlob = new Blob([blob], { type: type === 'ios' ? 'audio/mp4' : 'audio/webm' });
+            
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(finalBlob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+    </script>
+</body>
+</html>
