@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智德小程式_PDF智能文字清除大師_V01</title>
+    <title>智德小程式_PDF智能文字清除大師_V02</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Phosphor Icons -->
@@ -546,13 +546,18 @@
             const delta = -Math.sign(e.deltaY);
             const factor = delta > 0 ? 1.1 : 0.9;
             let newScale = transformState.scale * factor;
-            if (newScale < 1) newScale = 1;
+            
+            // Allow zoom out to 50% (0.5)
+            if (newScale < 0.5) newScale = 0.5;
             if (newScale > 10) newScale = 10;
+            
             const newTx = mouseX - (mouseX - transformState.x) * (newScale / transformState.scale);
             const newTy = mouseY - (mouseY - transformState.y) * (newScale / transformState.scale);
             transformState = { x: newTx, y: newTy, scale: newScale };
             applyTransform();
-            if(newScale > 1.01) btnResetZoom.classList.remove('hidden');
+            
+            // Show reset button if not at 100%
+            if(Math.abs(newScale - 1) > 0.01) btnResetZoom.classList.remove('hidden');
             else btnResetZoom.classList.add('hidden');
         }
 
@@ -669,7 +674,8 @@
             const boxCssW = rect.w * scaleToCss;
             let targetScale = wrapperW / boxCssW;
             if (targetScale > 10) targetScale = 10;
-            if (targetScale < 1) targetScale = 1;
+            // Allow zoom window to shrink if selected area is huge, but floor at 0.5
+            if (targetScale < 0.5) targetScale = 0.5;
             const boxCenterCssX = (rect.x + rect.w/2) * scaleToCss;
             const boxCenterCssY = (rect.y + rect.h/2) * scaleToCss;
             const viewCenterX = wrapperW / 2;
@@ -699,7 +705,7 @@
         }
 
         function renderUIOverlay() {
-            uiOverlay.innerHTML = '';
+            uiOverlay.innerhtml = '';
             const domW = mainCanvas.offsetWidth;
             const scaleX = domW / mainCanvas.width;
             const scaleY = scaleX; 
@@ -718,7 +724,7 @@
                 
                 const btn = document.createElement('div');
                 btn.className = 'delete-btn';
-                btn.innerHTML = '×';
+                btn.innerhtml = '×';
                 btn.onclick = (e) => {
                     e.stopPropagation();
                     manualRegions = manualRegions.filter(r => r.id !== region.id);
@@ -739,7 +745,7 @@
                 const arrayBuffer = await file.arrayBuffer();
                 const loadingTask = pdfjsLib.getDocument(arrayBuffer);
                 pdfDoc = await loadingTask.promise;
-                thumbnailsContainer.innerHTML = '';
+                thumbnailsContainer.innerhtml = '';
                 workspace.classList.remove('hidden');
                 emptyState.classList.add('hidden');
                 renderThumbnails();
@@ -782,7 +788,7 @@
             });
             resetZoom();
             resetPickedColor();
-            uiOverlay.innerHTML = '';
+            uiOverlay.innerhtml = '';
             manualRegions = [];
             originalCanvasData = null;
             try {
