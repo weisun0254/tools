@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智德小程式_PDF智能文字清除大師_V01</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Google Fonts: Zen Maru Gothic for rounded/cartoon look -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cartoon-yellow': '#FFD93D',
+                        'cartoon-blue': '#6BCB77',
+                        'cartoon-red': '#FF6B6B',
+                        'cartoon-dark': '#2D2D2D',
+                        'cartoon-bg': '#FFFBF0',
+                    },
+                    boxShadow: {
+                        'pop': '4px 4px 0px 0px #2D2D2D',
+                        'pop-sm': '2px 2px 0px 0px #2D2D2D',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            background-image: radial-gradient(#E5E7EB 2px, transparent 2px);
+            background-size: 24px 24px;
+        }
+
+        /* Cartoon Components */
+        .cartoon-card {
+            background: white;
+            border: 3px solid #2D2D2D;
+            border-radius: 1.5rem;
+            box-shadow: 6px 6px 0px 0px #2D2D2D;
+        }
+
+        .cartoon-btn {
+            border: 2px solid #2D2D2D;
+            border-radius: 1rem;
+            font-weight: 900;
+            transition: all 0.1s;
+            box-shadow: 4px 4px 0px 0px #2D2D2D;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+        }
+        .cartoon-btn:hover:not(:disabled) {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px 0px #2D2D2D;
+        }
+        .cartoon-btn:active:not(:disabled), .cartoon-btn.active {
+            transform: translate(2px, 2px);
+            box-shadow: 0px 0px 0px 0px #2D2D2D;
+        }
+        .cartoon-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+            border-style: dashed;
+        }
+
+        /* Tool Specific Styles */
+        .tool-btn {
+            background-color: white;
+            color: #555;
+        }
+        .tool-btn.active-draw { background-color: #FF6B6B; color: white; }
+        .tool-btn.active-zoom { background-color: #4D96FF; color: white; }
+        .tool-btn.active-pan { background-color: #FFD93D; color: #2D2D2D; }
+        .tool-btn.active-eyedropper { background-color: #6BCB77; color: white; }
+
+        /* Canvas & Overlays */
+        .canvas-container {
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+            background-color: #F3F4F6;
+            touch-action: none;
+            border: 3px solid #2D2D2D;
+            border-radius: 1rem;
+        }
+        
+        #zoom-layer {
+            transform-origin: 0 0;
+            transition: transform 0.1s linear;
+            width: 100%;
+            height: 100%;
+        }
+        #zoom-layer.is-dragging { transition: none; }
+
+        canvas { display: block; width: 100%; height: auto; }
+        
+        /* Manual Region */
+        .manual-region {
+            position: absolute;
+            border: 3px solid #2D2D2D;
+            background-color: rgba(255, 107, 107, 0.1); 
+            cursor: pointer;
+            z-index: 30;
+            pointer-events: auto;
+            border-radius: 4px;
+        }
+        .manual-region:hover {
+            background-color: rgba(255, 107, 107, 0.2);
+            box-shadow: 0 0 0 2px #FFF, 0 0 0 4px #2D2D2D;
+        }
+        
+        /* Cartoonish Delete Button */
+        .delete-btn {
+            position: absolute;
+            top: -16px;
+            right: -16px;
+            width: 32px;
+            height: 32px;
+            background: #FF6B6B;
+            color: white;
+            border: 2px solid #2D2D2D;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 900;
+            cursor: pointer;
+            z-index: 40;
+            pointer-events: auto;
+            transition: transform 0.1s;
+            box-shadow: 2px 2px 0px #2D2D2D;
+        }
+        .delete-btn:hover { transform: scale(1.1); }
+        .delete-btn:active { transform: scale(0.9); box-shadow: none; }
+
+        /* Selection Box */
+        #selection-box {
+            position: absolute;
+            border: 3px dashed #2D2D2D;
+            background-color: rgba(0,0,0,0.05);
+            display: none;
+            pointer-events: none;
+            z-index: 40;
+            border-radius: 4px;
+        }
+        #selection-box.zoom-mode {
+            border-color: #4D96FF;
+            background-color: rgba(77, 150, 255, 0.1);
+            border-style: solid;
+        }
+
+        /* Color Preview */
+        .color-preview-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 2px solid #2D2D2D;
+        }
+
+        /* Cursors */
+        .cursor-crosshair { cursor: crosshair; }
+        .cursor-default { cursor: default; }
+        .cursor-zoom-in { cursor: zoom-in; }
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+        .cursor-eyedropper { cursor: cell; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 6px; border: 2px solid #f1f1f1; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+    </style>
+</head>
+<body class="bg-cartoon-bg text-cartoon-dark h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b-4 border-cartoon-dark h-24 flex items-center justify-between px-8 shrink-0 z-20">
+        <div class="flex items-center gap-4">
+            <div class="bg-cartoon-yellow p-2 rounded-xl border-2 border-cartoon-dark shadow-pop-sm">
+                <i class="ph-fill ph-file-pdf text-4xl text-cartoon-dark"></i>
+            </div>
+            <h1 class="text-3xl font-black text-cartoon-dark tracking-wide">智德小程式_PDF智能文字清除大師_V01</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <label for="pdf-upload" class="cartoon-btn bg-white hover:bg-slate-50 cursor-pointer text-lg">
+                <i class="ph-bold ph-upload-simple text-2xl"></i>
+                上傳 PDF
+                <input type="file" id="pdf-upload" accept="application/pdf" class="hidden">
+            </label>
+            <button id="download-btn" disabled class="cartoon-btn bg-cartoon-blue text-white hover:bg-green-500 text-lg">
+                <i class="ph-bold ph-download-simple text-2xl"></i>
+                下載頁面
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden p-6 gap-6">
+        
+        <!-- Sidebar -->
+        <aside class="w-72 cartoon-card flex flex-col shrink-0 overflow-hidden">
+            <div class="p-4 border-b-4 border-cartoon-dark bg-yellow-50">
+                <h2 class="text-xl font-bold text-cartoon-dark text-center">📄 頁面預覽</h2>
+            </div>
+            <div id="thumbnails-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+                <div class="text-center text-slate-400 mt-10">
+                    <i class="ph-duotone ph-file-dashed text-6xl mb-4"></i>
+                    <p class="text-xl font-bold">請先上傳檔案</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Editor Area -->
+        <section class="flex-1 cartoon-card flex flex-col relative overflow-hidden bg-white">
+            
+            <div id="workspace" class="hidden flex flex-col w-full h-full">
+                
+                <!-- Toolbar -->
+                <div class="bg-yellow-50 p-4 border-b-4 border-cartoon-dark flex justify-between items-center shrink-0 flex-wrap gap-4">
+                    
+                    <div class="flex items-center gap-4">
+                        <!-- Page Indicator -->
+                        <div class="flex items-center gap-2 text-xl font-bold bg-white px-4 py-2 rounded-xl border-2 border-cartoon-dark shadow-pop-sm">
+                            <span>第</span>
+                            <span id="current-page-num" class="text-cartoon-red font-black text-2xl">1</span>
+                            <span>頁</span>
+                        </div>
+                        
+                        <!-- Tool Switcher -->
+                        <div class="flex gap-3 bg-white p-2 rounded-2xl border-2 border-cartoon-dark shadow-pop-sm">
+                            <button id="tool-eyedropper" class="cartoon-btn tool-btn text-lg" title="吸管">
+                                <i class="ph-bold ph-eyedropper text-2xl"></i> 吸色
+                            </button>
+                            <button id="tool-draw" class="cartoon-btn tool-btn text-lg" title="手動框選">
+                                <i class="ph-bold ph-selection-plus text-2xl"></i> 補色
+                            </button>
+                            
+                            <div class="w-1 h-10 bg-cartoon-dark rounded-full mx-1 opacity-20 self-center"></div>
+                            
+                            <button id="tool-zoom-window" class="cartoon-btn tool-btn text-lg" title="窗選放大">
+                                <i class="ph-bold ph-magnifying-glass-plus text-2xl"></i> 放大
+                            </button>
+                            <button id="tool-pan" class="cartoon-btn tool-btn text-lg" title="移動畫面">
+                                <i class="ph-bold ph-hand-grabbing text-2xl"></i> 移動
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Color Status Indicator -->
+                        <div id="color-status" class="flex items-center gap-3 px-4 py-2 rounded-xl bg-white border-2 border-cartoon-dark shadow-pop-sm cursor-pointer hover:bg-slate-50 transition group" title="點擊重設為自動">
+                            <span class="text-lg font-bold text-cartoon-dark">顏色:</span>
+                            <div id="active-color-preview" class="color-preview-box bg-slate-100 flex items-center justify-center relative">
+                                <!-- Auto Icon -->
+                                <i id="auto-color-icon" class="ph-bold ph-magic-wand text-cartoon-dark text-xl absolute"></i>
+                            </div>
+                            <span id="active-color-text" class="text-lg font-bold text-slate-500">自動</span>
+                            <i class="ph-bold ph-arrow-counter-clockwise text-cartoon-red text-xl opacity-0 group-hover:opacity-100 transition"></i>
+                        </div>
+
+                        <!-- Reset Zoom Button -->
+                        <button id="btn-reset-zoom" class="hidden cartoon-btn bg-cartoon-dark text-white hover:bg-gray-700">
+                            <i class="ph-bold ph-arrows-out-line-horizontal"></i> 100%
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas Area -->
+                <div class="flex-1 bg-slate-100 relative overflow-hidden p-4">
+                    <div id="canvas-wrapper" class="canvas-container w-full h-full bg-white shadow-lg mx-auto">
+                        <div id="zoom-layer">
+                            <canvas id="main-canvas" class="z-0"></canvas>
+                            <div id="ui-overlay" class="absolute inset-0 z-10 pointer-events-none"></div>
+                            <div id="selection-box"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hint Bar -->
+                <div class="bg-cartoon-dark text-white p-3 text-center text-lg font-bold tracking-wide">
+                    <p id="hint-draw" class="hidden text-cartoon-red">🎨 畫筆模式：拖曳框選區域以補色。右側可查看當前顏色。</p>
+                    <p id="hint-eyedropper" class="hidden text-cartoon-blue">🧪 吸管模式：點擊畫面任一處吸取顏色。</p>
+                    <p id="hint-zoom-window" class="hidden text-blue-300">🔍 放大鏡：框選想要放大的區域。</p>
+                    <p id="hint-pan" class="hidden text-yellow-300">✋ 抓手模式：按住左鍵拖曳畫面。</p>
+                    <p id="hint-default" class="text-gray-400">請選擇上方工具開始編輯。滑鼠滾輪可隨時縮放。</p>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="flex flex-col items-center justify-center h-full text-cartoon-dark/30">
+                <i class="ph-duotone ph-paper-plane-tilt text-8xl mb-6"></i>
+                <p class="text-3xl font-black">準備開始！</p>
+                <p class="text-xl mt-2 font-bold">請從左上角上傳 PDF 檔案</p>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let scale = 2.0;
+        let currentPage = 1;
+        let currentPdfPage = null;
+        let originalCanvasData = null; 
+
+        let manualRegions = []; 
+
+        // Tool State - Default to 'draw' since AI is gone
+        let currentTool = 'draw'; 
+        let pickedColor = null; // null = auto detect
+
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let transformState = { x: 0, y: 0, scale: 1 }; 
+
+        // DOM
+        const fileInput = document.getElementById('pdf-upload');
+        const thumbnailsContainer = document.getElementById('thumbnails-container');
+        const workspace = document.getElementById('workspace');
+        const emptyState = document.getElementById('empty-state');
+        const mainCanvas = document.getElementById('main-canvas');
+        const ctx = mainCanvas.getContext('2d', { willReadFrequently: true });
+        const uiOverlay = document.getElementById('ui-overlay');
+        const selectionBox = document.getElementById('selection-box');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const zoomLayer = document.getElementById('zoom-layer');
+        
+        const downloadBtn = document.getElementById('download-btn');
+        
+        const toolDrawBtn = document.getElementById('tool-draw');
+        const toolZoomWindowBtn = document.getElementById('tool-zoom-window');
+        const toolPanBtn = document.getElementById('tool-pan');
+        const toolEyedropperBtn = document.getElementById('tool-eyedropper');
+        
+        const btnResetZoom = document.getElementById('btn-reset-zoom');
+        const colorStatusDiv = document.getElementById('color-status');
+        const activeColorPreview = document.getElementById('active-color-preview');
+        const autoColorIcon = document.getElementById('auto-color-icon');
+        const activeColorText = document.getElementById('active-color-text');
+        
+        // Events
+        fileInput.addEventListener('change', handleFileUpload);
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `edited-page-${currentPage}.png`;
+            link.href = mainCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        toolDrawBtn.addEventListener('click', () => setTool('draw'));
+        toolZoomWindowBtn.addEventListener('click', () => setTool('zoom-window'));
+        toolPanBtn.addEventListener('click', () => setTool('pan'));
+        toolEyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
+        
+        btnResetZoom.addEventListener('click', resetZoom);
+        colorStatusDiv.addEventListener('click', resetPickedColor);
+
+        canvasWrapper.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove); 
+        window.addEventListener('mouseup', handleMouseUp);
+        canvasWrapper.addEventListener('wheel', handleWheel, { passive: false });
+
+        // Initialize UI
+        setTool('draw');
+
+        // --- Core Functions ---
+
+        function setTool(tool) {
+            currentTool = tool;
+            
+            // UI Styles Reset
+            [toolDrawBtn, toolZoomWindowBtn, toolPanBtn, toolEyedropperBtn].forEach(btn => {
+                btn.classList.remove('active', 'active-draw', 'active-zoom', 'active-pan', 'active-eyedropper');
+            });
+
+            // Activate current button
+            if (tool === 'draw') toolDrawBtn.classList.add('active', 'active-draw');
+            if (tool === 'zoom-window') toolZoomWindowBtn.classList.add('active', 'active-zoom');
+            if (tool === 'pan') toolPanBtn.classList.add('active', 'active-pan');
+            if (tool === 'eyedropper') toolEyedropperBtn.classList.add('active', 'active-eyedropper');
+
+            updateCursor();
+            
+            // Hide all hints first
+            ['draw', 'zoom-window', 'pan', 'eyedropper', 'default'].forEach(t => {
+                const el = document.getElementById(`hint-${t}`);
+                if (el) el.classList.add('hidden');
+            });
+            
+            const hint = document.getElementById(`hint-${tool}`);
+            if (hint) hint.classList.remove('hidden');
+
+            // Manage pointer events
+            uiOverlay.style.pointerEvents = 'auto'; 
+            if (tool === 'draw' || tool === 'eyedropper') {
+                uiOverlay.style.pointerEvents = 'none'; // Allow click-through to canvas
+            } else {
+                uiOverlay.style.pointerEvents = 'none';
+            }
+        }
+
+        function updateCursor() {
+            canvasWrapper.classList.remove('cursor-crosshair', 'cursor-default', 'cursor-zoom-in', 'cursor-grab', 'cursor-grabbing', 'cursor-eyedropper');
+            if (isPanning) canvasWrapper.classList.add('cursor-grabbing');
+            else if (currentTool === 'pan') canvasWrapper.classList.add('cursor-grab');
+            else if (currentTool === 'draw') canvasWrapper.classList.add('cursor-crosshair');
+            else if (currentTool === 'zoom-window') canvasWrapper.classList.add('cursor-zoom-in');
+            else if (currentTool === 'eyedropper') canvasWrapper.classList.add('cursor-eyedropper');
+            else canvasWrapper.classList.add('cursor-default');
+        }
+
+        function resetZoom() {
+            transformState = { x: 0, y: 0, scale: 1 };
+            applyTransform();
+            btnResetZoom.classList.add('hidden');
+            updateCursor();
+        }
+
+        function resetPickedColor() {
+            pickedColor = null;
+            updateColorStatusUI();
+        }
+
+        function updateColorStatusUI() {
+            if (pickedColor) {
+                // Active Color Mode
+                activeColorPreview.style.backgroundColor = pickedColor;
+                autoColorIcon.classList.add('hidden');
+                activeColorText.innerText = pickedColor.toUpperCase();
+                activeColorText.className = "text-lg font-bold text-cartoon-dark font-mono";
+            } else {
+                // Auto Mode
+                activeColorPreview.style.backgroundColor = 'transparent';
+                autoColorIcon.classList.remove('hidden');
+                activeColorText.innerText = '自動';
+                activeColorText.className = "text-lg font-bold text-slate-400";
+            }
+        }
+
+        // --- Interaction Logic ---
+
+        function handleMouseDown(e) {
+            if (e.target.closest('.delete-btn')) return;
+
+            if (currentTool === 'eyedropper') {
+                const pos = getInternalCanvasCoordinates(e);
+                handleEyedropperAction(pos.x, pos.y);
+                return;
+            }
+
+            if (currentTool === 'pan') {
+                isPanning = true;
+                panStart = { x: e.clientX, y: e.clientY };
+                zoomLayer.classList.add('is-dragging'); 
+                updateCursor();
+                return;
+            }
+
+            if (currentTool === 'draw' || currentTool === 'zoom-window') {
+                isDrawing = true;
+                const pos = getInternalCanvasCoordinates(e);
+                startX = pos.x;
+                startY = pos.y;
+                selectionBox.style.display = 'block';
+                selectionBox.className = currentTool === 'zoom-window' ? 'zoom-mode' : '';
+                updateSelectionBoxVisual(startX, startY, 0, 0);
+            }
+        }
+
+        function handleMouseMove(e) {
+            if (isPanning) {
+                const dx = e.clientX - panStart.x;
+                const dy = e.clientY - panStart.y;
+                const newTx = transformState.x + dx;
+                const newTy = transformState.y + dy;
+                zoomLayer.style.transform = `translate3d(${newTx}px, ${newTy}px, 0px) scale(${transformState.scale})`;
+                return;
+            }
+            if (!isDrawing) return;
+            const pos = getInternalCanvasCoordinates(e);
+            const w = pos.x - startX;
+            const h = pos.y - startY;
+            updateSelectionBoxVisual(startX, startY, w, h);
+        }
+
+        function handleMouseUp(e) {
+            if (isPanning) {
+                isPanning = false;
+                zoomLayer.classList.remove('is-dragging');
+                const dx = e.clientX - panStart.x;
+                const dy = e.clientY - panStart.y;
+                transformState.x += dx;
+                transformState.y += dy;
+                applyTransform();
+                updateCursor();
+                return;
+            }
+            if (!isDrawing) return;
+            isDrawing = false;
+            selectionBox.style.display = 'none';
+
+            const pos = getInternalCanvasCoordinates(e);
+            const w = pos.x - startX;
+            const h = pos.y - startY;
+            const rect = {
+                x: w < 0 ? pos.x : startX,
+                y: h < 0 ? pos.y : startY,
+                w: Math.abs(w),
+                h: Math.abs(h)
+            };
+
+            if (rect.w < 5 || rect.h < 5) return;
+
+            if (currentTool === 'draw') {
+                handleManualDraw(rect);
+            } else if (currentTool === 'zoom-window') {
+                handleZoomWindowAction(rect);
+            }
+        }
+
+        function handleWheel(e) {
+            e.preventDefault();
+            const rect = canvasWrapper.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const delta = -Math.sign(e.deltaY);
+            const factor = delta > 0 ? 1.1 : 0.9;
+            let newScale = transformState.scale * factor;
+            if (newScale < 1) newScale = 1;
+            if (newScale > 10) newScale = 10;
+            const newTx = mouseX - (mouseX - transformState.x) * (newScale / transformState.scale);
+            const newTy = mouseY - (mouseY - transformState.y) * (newScale / transformState.scale);
+            transformState = { x: newTx, y: newTy, scale: newScale };
+            applyTransform();
+            if(newScale > 1.01) btnResetZoom.classList.remove('hidden');
+            else btnResetZoom.classList.add('hidden');
+        }
+
+        // --- Eyedropper Logic ---
+
+        function handleEyedropperAction(x, y) {
+            if (!originalCanvasData) return;
+            
+            x = Math.floor(Math.max(0, Math.min(x, mainCanvas.width - 1)));
+            y = Math.floor(Math.max(0, Math.min(y, mainCanvas.height - 1)));
+            
+            const index = (y * mainCanvas.width + x) * 4;
+            const data = originalCanvasData.data;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            
+            const toHex = (c) => {
+                const hex = c.toString(16);
+                return hex.length === 1 ? "0" + hex : hex;
+            };
+            pickedColor = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+            
+            updateColorStatusUI();
+            setTool('draw'); // Switch back to draw automatically
+        }
+
+        // --- Smart Fill Logic ---
+
+        function handleManualDraw(rect) {
+            let fillColor;
+            
+            if (pickedColor) {
+                fillColor = pickedColor;
+            } else {
+                fillColor = detectBackgroundColor(rect.x, rect.y, rect.w, rect.h);
+            }
+
+            manualRegions.push({
+                id: Date.now(),
+                ...rect,
+                color: fillColor
+            });
+            renderUIOverlay();
+            redrawCanvas();
+        }
+
+        function detectBackgroundColor(x, y, w, h) {
+            if (!originalCanvasData) return '#FFFFFF';
+            x = Math.floor(Math.max(0, x));
+            y = Math.floor(Math.max(0, y));
+            w = Math.floor(Math.min(w, mainCanvas.width - x));
+            h = Math.floor(Math.min(h, mainCanvas.height - y));
+            const pixels = originalCanvasData.data;
+            const width = mainCanvas.width;
+            let rTotal = 0, gTotal = 0, bTotal = 0, count = 0;
+            
+            for (let i = x; i < x + w; i++) {
+                if (y > 0) addPixel(i, y - 1);
+                if (y + h < mainCanvas.height) addPixel(i, y + h);
+            }
+            for (let j = y; j < y + h; j++) {
+                if (x > 0) addPixel(x - 1, j);
+                if (x + w < width) addPixel(x + w, j);
+            }
+            function addPixel(px, py) {
+                const index = (py * width + px) * 4;
+                rTotal += pixels[index];
+                gTotal += pixels[index + 1];
+                bTotal += pixels[index + 2];
+                count++;
+            }
+            if (count === 0) return '#FFFFFF';
+            const r = Math.round(rTotal / count);
+            const g = Math.round(gTotal / count);
+            const b = Math.round(bTotal / count);
+            return `rgb(${r},${g},${b})`;
+        }
+
+        // --- Canvas & Coordinates ---
+
+        function getInternalCanvasCoordinates(e) {
+            const rect = canvasWrapper.getBoundingClientRect();
+            const wrapperX = e.clientX - rect.left;
+            const wrapperY = e.clientY - rect.top;
+            const layerX = (wrapperX - transformState.x) / transformState.scale;
+            const layerY = (wrapperY - transformState.y) / transformState.scale;
+            const domW = mainCanvas.offsetWidth;
+            const scaleToInternal = mainCanvas.width / domW;
+            return {
+                x: layerX * scaleToInternal,
+                y: layerY * scaleToInternal
+            };
+        }
+
+        function updateSelectionBoxVisual(x, y, w, h) {
+            const domW = mainCanvas.offsetWidth;
+            const scaleToCss = domW / mainCanvas.width;
+            const cssX = (w < 0 ? x + w : x) * scaleToCss;
+            const cssY = (h < 0 ? y + h : y) * scaleToCss;
+            const cssW = Math.abs(w) * scaleToCss;
+            const cssH = Math.abs(h) * scaleToCss;
+            selectionBox.style.left = cssX + 'px';
+            selectionBox.style.top = cssY + 'px';
+            selectionBox.style.width = cssW + 'px';
+            selectionBox.style.height = cssH + 'px';
+        }
+
+        function handleZoomWindowAction(rect) {
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            const wrapperW = wrapperRect.width;
+            const domW = mainCanvas.offsetWidth; 
+            const scaleToCss = domW / mainCanvas.width;
+            const boxCssW = rect.w * scaleToCss;
+            let targetScale = wrapperW / boxCssW;
+            if (targetScale > 10) targetScale = 10;
+            if (targetScale < 1) targetScale = 1;
+            const boxCenterCssX = (rect.x + rect.w/2) * scaleToCss;
+            const boxCenterCssY = (rect.y + rect.h/2) * scaleToCss;
+            const viewCenterX = wrapperW / 2;
+            const viewCenterY = canvasWrapper.clientHeight / 2;
+            const newTx = viewCenterX - (boxCenterCssX * targetScale);
+            const newTy = viewCenterY - (boxCenterCssY * targetScale);
+            transformState = { x: newTx, y: newTy, scale: targetScale };
+            applyTransform();
+            btnResetZoom.classList.remove('hidden');
+        }
+
+        function applyTransform() {
+            zoomLayer.style.transform = `translate3d(${transformState.x}px, ${transformState.y}px, 0px) scale(${transformState.scale})`;
+        }
+
+        // --- Rendering ---
+
+        function redrawCanvas() {
+            if (!originalCanvasData) return;
+            ctx.putImageData(originalCanvasData, 0, 0);
+            
+            // Only Manual Regions now
+            manualRegions.forEach(region => {
+                ctx.fillStyle = region.color;
+                ctx.fillRect(region.x, region.y, region.w, region.h);
+            });
+        }
+
+        function renderUIOverlay() {
+            uiOverlay.innerHTML = '';
+            const domW = mainCanvas.offsetWidth;
+            const scaleX = domW / mainCanvas.width;
+            const scaleY = scaleX; 
+
+            // Manual Regions
+            manualRegions.forEach((region) => {
+                const div = document.createElement('div');
+                div.className = 'manual-region';
+                div.style.left = `${region.x * scaleX}px`;
+                div.style.top = `${region.y * scaleY}px`;
+                div.style.width = `${region.w * scaleX}px`;
+                div.style.height = `${region.h * scaleY}px`;
+                div.style.backgroundColor = region.color; 
+                div.style.opacity = '0.7';
+                div.title = `Color: ${region.color}`;
+                
+                const btn = document.createElement('div');
+                btn.className = 'delete-btn';
+                btn.innerHTML = '×';
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    manualRegions = manualRegions.filter(r => r.id !== region.id);
+                    renderUIOverlay();
+                    redrawCanvas();
+                };
+                div.appendChild(btn);
+                uiOverlay.appendChild(div);
+            });
+        }
+
+        // --- PDF Rendering ---
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.type !== 'application/pdf') { alert('請上傳 PDF 檔案'); return; }
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                pdfDoc = await loadingTask.promise;
+                thumbnailsContainer.innerHTML = '';
+                workspace.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                renderThumbnails();
+                renderPage(1);
+            } catch (err) { console.error(err); alert('PDF 載入失敗: ' + err.message); }
+        }
+
+        async function renderThumbnails() {
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: 0.2 });
+                const thumbWrapper = document.createElement('div');
+                thumbWrapper.className = 'cursor-pointer p-3 rounded-2xl hover:bg-yellow-100 transition border-4 border-transparent hover:border-cartoon-dark';
+                thumbWrapper.onclick = () => renderPage(i);
+                if (i === 1) thumbWrapper.classList.add('bg-yellow-100', 'border-cartoon-dark');
+                const canvas = document.createElement('canvas');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                canvas.className = 'w-full shadow-sm bg-white mb-2 rounded border border-gray-200';
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                const label = document.createElement('div');
+                label.innerText = `第 ${i} 頁`;
+                label.className = 'text-center text-sm font-bold text-cartoon-dark';
+                thumbWrapper.appendChild(canvas);
+                thumbWrapper.appendChild(label);
+                thumbWrapper.dataset.pageNum = i;
+                thumbnailsContainer.appendChild(thumbWrapper);
+            }
+        }
+
+        async function renderPage(num) {
+            if (pageRendering) { pageNumPending = num; return; }
+            pageRendering = true;
+            currentPage = num;
+            document.getElementById('current-page-num').innerText = num;
+            downloadBtn.disabled = true;
+            document.querySelectorAll('#thumbnails-container > div').forEach(div => {
+                if (parseInt(div.dataset.pageNum) === num) div.classList.add('bg-yellow-100', 'border-cartoon-dark');
+                else div.classList.remove('bg-yellow-100', 'border-cartoon-dark');
+            });
+            resetZoom();
+            resetPickedColor();
+            uiOverlay.innerHTML = '';
+            manualRegions = [];
+            originalCanvasData = null;
+            try {
+                currentPdfPage = await pdfDoc.getPage(num);
+                const viewport = currentPdfPage.getViewport({ scale: scale });
+                mainCanvas.height = viewport.height;
+                mainCanvas.width = viewport.width;
+                await currentPdfPage.render({ canvasContext: ctx, viewport }).promise;
+                originalCanvasData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+                downloadBtn.disabled = false;
+                pageRendering = false;
+                if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
+            } catch (err) { console.error(err); pageRendering = false; }
+        }
+        
+        window.addEventListener('resize', () => { if (manualRegions.length > 0) renderUIOverlay(); });
+    </script>
+</body>
+</html>
