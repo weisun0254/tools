@@ -699,7 +699,7 @@
         }
 
         function renderUIOverlay() {
-            uiOverlay.innerHTML = '';
+            uiOverlay.innerhtml = '';
             const domW = mainCanvas.offsetWidth;
             const scaleX = domW / mainCanvas.width;
             const scaleY = scaleX; 
@@ -718,7 +718,7 @@
                 
                 const btn = document.createElement('div');
                 btn.className = 'delete-btn';
-                btn.innerHTML = '×';
+                btn.innerhtml = '×';
                 btn.onclick = (e) => {
                     e.stopPropagation();
                     manualRegions = manualRegions.filter(r => r.id !== region.id);
@@ -739,7 +739,7 @@
                 const arrayBuffer = await file.arrayBuffer();
                 const loadingTask = pdfjsLib.getDocument(arrayBuffer);
                 pdfDoc = await loadingTask.promise;
-                thumbnailsContainer.innerHTML = '';
+                thumbnailsContainer.innerhtml = '';
                 workspace.classList.remove('hidden');
                 emptyState.classList.add('hidden');
                 renderThumbnails();
@@ -782,7 +782,7 @@
             });
             resetZoom();
             resetPickedColor();
-            uiOverlay.innerHTML = '';
+            uiOverlay.innerhtml = '';
             manualRegions = [];
             originalCanvasData = null;
             try {
@@ -801,4 +801,5 @@
         window.addEventListener('resize', () => { if (manualRegions.length > 0) renderUIOverlay(); });
     </script>
 </body>
+
 </html>
